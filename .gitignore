@@ -1,0 +1,29 @@
+# File delle variabili d'ambiente locali (contiene segreti!)
+.env
+
+# Cache e file compilati di Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Cartelle di ambienti virtuali Python comuni
+venv/
+.venv/
+env/
+.env/
+venv.bak/
+.env.bak/
+
+# File specifici di IDE/editor (opzionale ma utile)
+.idea/
+.vscode/
+*.swp
+*~
+
+# Eventuali file di log generati localmente (se ne crei)
+*.log
+
+# Cache di build Docker (anche se spesso gestita da Docker stesso)
+#potrebbe gestirne alcuni, ma aggiungere qui non fa male
+.dockerignore 

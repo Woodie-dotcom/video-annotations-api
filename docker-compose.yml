@@ -1,0 +1,73 @@
+# Specifica la versione della sintassi di Docker Compose
+version: '3.8'
+
+# Definizione dei servizi (container)
+services:
+  # Servizio Database PostgreSQL
+  db:
+    # Usa un'immagine ufficiale di PostgreSQL (consigliato usare una versione specifica)
+    image: postgres:17
+    # Nome opzionale ma utile per identificare il container
+    container_name: annotations_db_container
+    # Variabili d'ambiente per PostgreSQL
+    # NOTA: Anche se il DB è inizializzato, queste sono utili per la connessione
+    # e potenzialmente per il funzionamento interno dell'immagine/healthcheck.
+    # Usa le credenziali dell'UTENTE ADMIN del tuo DB.
+    environment:
+      POSTGRES_USER: ${POSTGRES_ADMIN_USER} # Legge da file .env
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD} # Legge da file .env
+      POSTGRES_DB: ${POSTGRES_DB_NAME} # Legge da file .env
+      # PGDATA: Non serve specificarlo, l'immagine sa che è in /var/lib/postgresql/data
+    # Volumi per la persistenza dei dati
+    volumes:
+      # Monta il nostro volume nominato (creato prima) nella cartella dati di Postgres
+      - postgres_data_vol:/var/lib/postgresql/data
+    # Rete a cui collegare il container
+    networks:
+      - annotations_net
+    # Politica di riavvio: riavvia a meno che non sia stato fermato manualmente
+    restart: unless-stopped
+    # Controllo di salute: verifica che Postgres sia pronto ad accettare connessioni
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_ADMIN_USER} -d ${POSTGRES_DB_NAME}"]
+      interval: 10s # Controlla ogni 10 secondi
+      timeout: 5s   # Attendi massimo 5 secondi per la risposta
+      retries: 5    # Prova 5 volte prima di segnarlo come non sano
+
+  # Servizio API FastAPI
+  api:
+    # Costruisce l'immagine Docker usando il Dockerfile nella cartella ./api
+    build: ./api
+    container_name: annotations_api_container
+    # Mappa la porta 8123 dell'host alla porta 8000 del container (dove gira Uvicorn/FastAPI)
+    ports:
+      - "8123:8000"
+    # Variabili d'ambiente per l'API (inclusa la stringa di connessione al DB)
+    environment:
+      # Usa le credenziali dell'UTENTE READER per la connessione dall'API (Best Practice)
+      # Nota: L'host è 'db' (il nome del servizio db), la porta è 5432 (interna)
+      DATABASE_URL: postgresql://${POSTGRES_READER_USER}:${POSTGRES_READER_PASSWORD}@db:5432/${POSTGRES_DB_NAME}
+    # Rete a cui collegare il container
+    networks:
+      - annotations_net
+    # Dipendenze: Assicura che il servizio 'api' parta DOPO che 'db' è pronto
+    depends_on:
+      db:
+        # Aspetta che l'healthcheck del servizio 'db' passi
+        condition: service_healthy
+    # Politica di riavvio
+    restart: unless-stopped
+
+# Definizione dei volumi usati dai servizi
+volumes:
+  # Il nostro volume nominato per i dati di Postgres
+  postgres_data_vol:
+    # Specifica che questo volume è stato creato esternamente (con 'docker volume create')
+    # e Docker Compose non deve provare a crearlo.
+    external: true
+
+# Definizione delle reti personalizzate
+networks:
+  # Crea una rete di tipo 'bridge' dedicata per i nostri servizi
+  annotations_net:
+    driver: bridge
